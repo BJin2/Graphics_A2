@@ -5,7 +5,7 @@
 #include "../../Common/GeometryGenerator.h"
 #include "FrameResource.h"
 #include "Waves.h"
-#include <iostream>
+#include <cmath>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -56,6 +56,8 @@ struct Primitive
 
 std::vector<DrawableItem> itemList;
 std::vector<Primitive> primitives;
+
+std::vector<XMFLOAT3> spherePos;
 
 // Lightweight structure stores parameters to draw a shape.  This will
 // vary from app-to-app.
@@ -539,6 +541,14 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
 	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
 	mMainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+	if (!spherePos.empty())
+	{
+		for (int i = 0; i < spherePos.size(); i++)
+		{
+			mMainPassCB.Lights[i + 3].Position = spherePos[i];
+			mMainPassCB.Lights[i + 3].Strength = { 1.0f, 0.0f, 0.0f };
+		}
+	}
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -717,6 +727,11 @@ void ShapesApp::BuildTestObjects()
 		fin_transform >> temp.position.x >> temp.position.y >> temp.position.z;
 		fin_transform >> temp.rotation.x >> temp.rotation.y >> temp.rotation.z;
 		fin_transform >> temp.scale.x >> temp.scale.y >> temp.scale.z;
+
+		if (temp.type == "geosphere")
+		{
+			spherePos.push_back(temp.position);
+		}
 
 		//Add the DrawbleItem instance to itemList
 		itemList.push_back(temp);
@@ -1198,8 +1213,10 @@ void ShapesApp::BuildTreeSpritesGeometry()
 	for(UINT i = 0; i < treeCount; ++i)
 	{
 		float x = MathHelper::RandF(-45.0f, 45.0f);
+		if (abs(x) <= 15) x *= 5;
 		float z = MathHelper::RandF(-45.0f, 45.0f);
-		float y = GetHillsHeight(x, z);
+		if (abs(z) <= 15) z *= 5;
+		float y = 0;
 
 		// Move tree slightly above land height.
 		y += 8.0f;
