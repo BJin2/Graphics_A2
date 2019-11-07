@@ -1,6 +1,3 @@
-//***************************************************************************************
-// ShapesApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
 
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
@@ -8,6 +5,7 @@
 #include "../../Common/GeometryGenerator.h"
 #include "FrameResource.h"
 #include "Waves.h"
+#include <iostream>
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -33,9 +31,7 @@ enum PrimitiveType
 };
 
 const std::string drawArgs[(int)PrimitiveType::Count] = { "box", "cylinder","geosphere","cone","pyramid","prism","wedge", "diamond", "penta" };
-const std::string textureName[7] = { "wall", "roof", "deco0", "deco1", "deco2", "door", "floor" };
-const XMFLOAT4 color[(int)PrimitiveType::Count] = { XMFLOAT4(DirectX::Colors::Gold), XMFLOAT4(DirectX::Colors::Azure), XMFLOAT4(DirectX::Colors::BurlyWood), XMFLOAT4(DirectX::Colors::Lavender), XMFLOAT4(DirectX::Colors::DarkSeaGreen), XMFLOAT4(DirectX::Colors::MidnightBlue), XMFLOAT4(DirectX::Colors::Ivory), XMFLOAT4(DirectX::Colors::Tan), XMFLOAT4(DirectX::Colors::Olive) };
-
+const std::string textureName[7] = { "wall", "roof", "deco0", "deco1", "deco2", "floor",  "door" };
 
 struct DrawableItem
 {
@@ -848,14 +844,14 @@ void ShapesApp::BuildDescriptorHeaps()
 	// next descriptor
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
 
-	srvDesc.Format = floorTex->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(floorTex.Get(), &srvDesc, hDescriptor);
+	srvDesc.Format = doorTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(doorTex.Get(), &srvDesc, hDescriptor);
 
 	// next descriptor
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
 
-	srvDesc.Format = doorTex->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(doorTex.Get(), &srvDesc, hDescriptor);
+	srvDesc.Format = floorTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(floorTex.Get(), &srvDesc, hDescriptor);
 
 	// next descriptor
 	hDescriptor.Offset(1, mCbvSrvDescriptorSize);
@@ -1445,7 +1441,7 @@ void ShapesApp::BuildRenderItems()
     gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+	//mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
 
 	auto boxRitem = std::make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
@@ -1457,7 +1453,7 @@ void ShapesApp::BuildRenderItems()
 	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
 	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
 
-	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
+	//mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
 
 	auto treeSpritesRitem = std::make_unique<RenderItem>();
 	treeSpritesRitem->World = MathHelper::Identity4x4();
@@ -1488,19 +1484,17 @@ void ShapesApp::BuildRenderItems()
 		XMStoreFloat4x4(&Ritem->World, transform);
 
 		Ritem->ObjCBIndex = i+4;
-		Ritem->Geo = mGeometries["shapeGeo"].get();
 		Ritem->Mat = mMaterials[itemList[i].tex].get();
+		Ritem->Geo = mGeometries["shapeGeo"].get();
+		
 		Ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
 		Ritem->IndexCount = Ritem->Geo->DrawArgs[itemList[i].type].IndexCount;
 		Ritem->StartIndexLocation = Ritem->Geo->DrawArgs[itemList[i].type].StartIndexLocation;
 		Ritem->BaseVertexLocation = Ritem->Geo->DrawArgs[itemList[i].type].BaseVertexLocation;
+		mRitemLayer[(int)RenderLayer::Opaque].push_back(Ritem.get());
 		mAllRitems.push_back(std::move(Ritem));
 	}
-
-	// All the render items are opaque.
-	for (auto& e : mAllRitems)
-		mRitemLayer[(int)RenderLayer::Opaque].push_back(e.get());
 
     mAllRitems.push_back(std::move(wavesRitem));
     mAllRitems.push_back(std::move(gridRitem));
