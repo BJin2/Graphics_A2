@@ -3,6 +3,7 @@
 #include "../../Common/MathHelper.h"
 #include "../../Common/UploadBuffer.h"
 #include "../../Common/GeometryGenerator.h"
+//step 1 Add camera header to use camera class
 #include "../../Common/Camera.h"
 #include "FrameResource.h"
 #include "Waves.h"
@@ -197,6 +198,9 @@ private:
 
 	PassConstants mMainPassCB;
 
+	// step 2
+	// Removed all members related to angles and projection and 
+	// added camera instead
 	Camera mCamera;
 
 	POINT mLastMousePos;
@@ -248,6 +252,7 @@ bool ShapesApp::Initialize()
 	// so we have to query this information.
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	// step 3 set camera position
 	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
@@ -281,7 +286,7 @@ void ShapesApp::OnResize()
 {
 	D3DApp::OnResize();
 
-	// Setting Camera lens(view) when window resized
+	//step 4 Setting Camera lens(view) when window resized
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 }
 
@@ -400,7 +405,10 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
 		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
+		// step 5 rotate the camera using angles calculated from mouse input
+		// Change camera pitch so the camera rotates up and down
 		mCamera.Pitch(dy);
+		// Rotate the camera in world y axis so that the camera rotates left and right without rolling
 		mCamera.RotateY(dx);
 	}
 
@@ -412,13 +420,18 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 
+	// step 6 Move the camera with keyboard input
 	//GetAsyncKeyState returns a short (2 bytes)
+
+	//Walk function in camera class moves the camera back and forward
 	if (GetAsyncKeyState('W') & 0x8000) //most significant bit (MSB) is 1 when key is pressed (1000 000 000 000)
 		mCamera.Walk(10.0f * dt);
 
 	if (GetAsyncKeyState('S') & 0x8000)
 		mCamera.Walk(-10.0f * dt);
 
+
+	//Strafe function in camera class moves the camera left and right
 	if (GetAsyncKeyState('A') & 0x8000)
 		mCamera.Strafe(-10.0f * dt);
 
@@ -504,6 +517,9 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 
 void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	// step 7
+	// When updating pass buffer, now view and projection matrices don't need calculating in the update function manually.
+	// User can get view and projection matrices from the camera without calculating manually.
 	XMMATRIX view = mCamera.GetView();
 	XMMATRIX proj = mCamera.GetProj();
 
@@ -518,6 +534,7 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	// The same thing applies to position. User don't need to calculate camera position manually.
 	mMainPassCB.EyePosW = mCamera.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
