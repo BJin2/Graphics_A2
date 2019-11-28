@@ -4,10 +4,17 @@
 #include "../../Common/MathHelper.h"
 #include "../../Common/UploadBuffer.h"
 
-struct ObjectConstants
+// step 8
+// Remove object constant and create InstanceData
+// which will have world matrix, texture transform and material index of a instance
+struct InstanceData
 {
-    DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 	DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+	UINT MaterialIndex;
+	UINT InstancePad0;
+	UINT InstancePad1;
+	UINT InstancePad2;
 };
 
 struct PassConstants
@@ -41,6 +48,23 @@ struct PassConstants
     Light Lights[MaxLights];
 };
 
+//step 9
+// Create material data wihch has data about lighting
+struct MaterialData
+{
+	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+	float Roughness = 64.0f;
+
+	// Used in texture mapping.
+	DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+
+	UINT DiffuseMapIndex = 0;
+	UINT MaterialPad0;
+	UINT MaterialPad1;
+	UINT MaterialPad2;
+};
+
 struct Vertex
 {
     DirectX::XMFLOAT3 Pos;
@@ -53,9 +77,9 @@ struct Vertex
 struct FrameResource
 {
 public:
-    
-    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount, UINT waveVertCount);
-	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
+    // step 10
+	// removed unneccessary constructor and added one using instance
+	FrameResource(ID3D12Device* device, UINT passCount, UINT maxInstanceCount, UINT materialCount);
     FrameResource(const FrameResource& rhs) = delete;
     FrameResource& operator=(const FrameResource& rhs) = delete;
     ~FrameResource();
@@ -68,8 +92,12 @@ public:
     // that reference it.  So each frame needs their own cbuffers.
    // std::unique_ptr<UploadBuffer<FrameConstants>> FrameCB = nullptr;
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-    std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
-    std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+
+	// step 11
+	// Use MaterialData instead of MaterialConstants so that user can have few materials only
+    std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
+	// Instance data upload buffer
+    std::unique_ptr<UploadBuffer<InstanceData>> InstanceBuffer = nullptr;
 
     // We cannot update a dynamic vertex buffer until the GPU is done processing
     // the commands that reference it.  So each frame needs their own.
