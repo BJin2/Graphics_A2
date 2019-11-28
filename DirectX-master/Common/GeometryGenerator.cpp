@@ -657,13 +657,11 @@ GeometryGenerator::MeshData GeometryGenerator::CreateQuad(float x, float y, floa
 }
 
 
-//STEP 2
 // Make function definitions
 #pragma region 6 Primitives
 
 GeometryGenerator::MeshData GeometryGenerator::CreatePentaCylinder(float bottomRadius, float topRadius, float height, uint32 stackCount)
 {
-	//STEP 3
 	// PentaCylinder is a cylinder with 5 sides only.
 	//So that it can just call CreateCylinder and pass 5 for sides and then return the result
 	return CreateCylinder(bottomRadius, topRadius, height, 5, stackCount);
@@ -671,8 +669,6 @@ GeometryGenerator::MeshData GeometryGenerator::CreatePentaCylinder(float bottomR
 
 GeometryGenerator::MeshData GeometryGenerator::CreateDiamond(float radius, float height, uint32 sliceCount)
 {
-	//STEP 3
-	//
 	MeshData upper = CreateCylinder(radius, 0, height, sliceCount, 1);
 	MeshData lower = CreateCylinder(0, radius, height, sliceCount, 1);
 
@@ -705,28 +701,24 @@ GeometryGenerator::MeshData GeometryGenerator::CreateDiamond(float radius, float
 
 GeometryGenerator::MeshData GeometryGenerator::CreateWedge(float bottomRadius, float topRadius, float height, uint32 stackCount)
 {
-	//STEP 4
 	// Wedge is a cylinder with 3 sides so it returns the result of CreateCylinder function with 3 sides
 	return CreateCylinder(bottomRadius, topRadius, height, 3, stackCount);
 }
 
 GeometryGenerator::MeshData GeometryGenerator::CreateCone(float bottomRadius, float height, uint32 sliceCount, uint32 stackCount)
 {
-	//STEP 5
 	// Cone is a cylinder that has radius of 0 for its top.
 	return CreateCylinder(bottomRadius, 0, height, sliceCount, stackCount);
 }
 
 GeometryGenerator::MeshData GeometryGenerator::CreatePyramid(float bottomRadius, float height, uint32 stackCount)
 {
-	//STEP 6
 	// Pyramid is a cone that has 4 sides only.
 	return CreateCone(bottomRadius, height, 4, stackCount);
 }
 
 GeometryGenerator::MeshData GeometryGenerator::CreatePrism(float bottomRadius, float height, uint32 stackCount)
 {
-	//STEP 7
 	// Triangular prism is a cone with 3 sides.
 	return CreateCone(bottomRadius, height, 3, stackCount);
 }

@@ -110,7 +110,6 @@ public:
 	///</summary>
 	MeshData CreateQuad(float x, float y, float w, float h, float depth);
 
-	//STEP 1
 	// Make function signitures for 6 new primitives(Wedge, Cone, Pyramid, Prism, Diamond, PentaCylinder)
 #pragma region 6 Primitives	
 
