@@ -50,7 +50,9 @@ struct DrawableItem
 	DrawableItem(std::string _type, XMFLOAT3 _position, XMFLOAT3 _rotation, XMFLOAT3 _scale) :
 		type(_type), position(_position), rotation(_rotation), scale(_scale)
 	{}
+	UINT primitiveIndex;
 	std::string type;
+	UINT texIndex;
 	std::string tex;
 	XMFLOAT3 position;
 	XMFLOAT3 rotation;
@@ -158,9 +160,7 @@ private:
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayouts();
 	void BuildCastleGeometry();
-	void BuildLandGeometry();
 	void BuildWavesGeometry();
-	void BuildBoxGeometry();
 	void BuildTreeSpritesGeometry();
 	void BuildPSOs();
 	void BuildFrameResources();
@@ -321,7 +321,7 @@ void ShapesApp::Update(const GameTimer& gt)
 	UpdateInstanceData(gt);
 	UpdateMaterialBuffer(gt);
 	UpdateMainPassCB(gt);
-	UpdateWaves(gt);
+	//UpdateWaves(gt);
 }
 
 void ShapesApp::Draw(const GameTimer& gt)
@@ -372,8 +372,8 @@ void ShapesApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
 
-	mCommandList->SetPipelineState(mPSOs["treeSprites"].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites]);
+	//mCommandList->SetPipelineState(mPSOs["treeSprites"].Get());
+	//DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites]);
 
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
@@ -785,9 +785,10 @@ void ShapesApp::BuildTestObjects()
 		fin_castle >> argIndex;
 		fin_texture >> texIndex;
 		temp.type = drawArgs[argIndex];
-
+		temp.primitiveIndex = argIndex;
 		// Get texture info which will be used to identify material that has appropriate texture
 		temp.tex = textureName[texIndex];
+		temp.texIndex = texIndex;
 
 		//Get transform data from text file
 		fin_transform >> temp.position.x >> temp.position.y >> temp.position.z;
@@ -1189,14 +1190,75 @@ void ShapesApp::BuildWavesGeometry()
 	mGeometries["waterGeo"] = std::move(geo);
 }
 
+void ShapesApp::BuildTreeSpritesGeometry()
+{
+	struct TreeSpriteVertex
+	{
+		XMFLOAT3 Pos;
+		XMFLOAT2 Size;
+	};
+
+	static const int treeCount = 16;
+	std::array<TreeSpriteVertex, 16> vertices;
+	for (UINT i = 0; i < treeCount; ++i)
+	{
+		float x = MathHelper::RandF(-45.0f, 45.0f);
+		if (abs(x) <= 15) x *= 5;
+		float z = MathHelper::RandF(-45.0f, 45.0f);
+		if (abs(z) <= 15) z *= 5;
+		float y = 0;
+
+		// Move tree slightly above land height.
+		y += 8.0f;
+
+		vertices[i].Pos = XMFLOAT3(x, y, z);
+		vertices[i].Size = XMFLOAT2(20.0f, 20.0f);
+	}
+
+	std::array<std::uint16_t, 16> indices =
+	{
+		0, 1, 2, 3, 4, 5, 6, 7,
+		8, 9, 10, 11, 12, 13, 14, 15
+	};
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "treeSpritesGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(TreeSpriteVertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["points"] = submesh;
+
+	mGeometries["treeSpritesGeo"] = std::move(geo);
+}
 
 void ShapesApp::BuildPSOs()
 {
+#pragma region Opaque
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
-	//
-	// PSO for opaque objects.
-	//
 	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	opaquePsoDesc.InputLayout = { mStdInputLayout.data(), (UINT)mStdInputLayout.size() };
 	opaquePsoDesc.pRootSignature = mRootSignature.Get();
@@ -1217,19 +1279,13 @@ void ShapesApp::BuildPSOs()
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
 	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
-
-	//there is abug with F2 key that is supposed to turn on the multisampling!
-//Set4xMsaaState(true);
-	//m4xMsaaState = true;
-
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+#pragma endregion
 
-	// PSO for transparent objects
-	//
-
+#pragma region Transparent
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
 
 	// blend descriptor which has informations about blending
@@ -1250,10 +1306,9 @@ void ShapesApp::BuildPSOs()
 
 	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
-
-	// PSO for alpha tested objects
-	//
-
+#pragma endregion
+	
+#pragma region Alpha-Tested
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
 	alphaTestedPsoDesc.PS =
 	{
@@ -1262,10 +1317,10 @@ void ShapesApp::BuildPSOs()
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+#pragma endregion
 
-	//
-	// PSO for tree sprites
-	// To render quads from point we use geometry shader
+#pragma region TreeSprite
+	/* To render quads from point we use geometry shader
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC treeSpritePsoDesc = opaquePsoDesc;
 	treeSpritePsoDesc.VS =
@@ -1289,6 +1344,8 @@ void ShapesApp::BuildPSOs()
 	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&treeSpritePsoDesc, IID_PPV_ARGS(&mPSOs["treeSprites"])));
+	//*/
+#pragma endregion
 }
 
 void ShapesApp::BuildFrameResources()
@@ -1299,7 +1356,6 @@ void ShapesApp::BuildFrameResources()
 			1, mInstanceCount, (UINT)mMaterials.size()));
 	}
 }
-
 
 void ShapesApp::BuildMaterials()
 {
@@ -1364,7 +1420,6 @@ void ShapesApp::BuildMaterials()
 	mMaterials["treeSprites"] = std::move(treeSprites);
 }
 
-
 void ShapesApp::BuildRenderItems()
 {
 	// Create unique pointer to save rendering information.
@@ -1381,7 +1436,9 @@ void ShapesApp::BuildRenderItems()
 
 	mWavesRitem = wavesRitem.get();
 	//Save information in mRitemLayer array by using (int)RenderLayer::Transparent key.
-	mRitemLayer[(int)RenderLayer::Transparent].push_back(wavesRitem.get());
+	//mRitemLayer[(int)RenderLayer::Transparent].push_back(wavesRitem.get());
+
+
 	auto treeSpritesRitem = std::make_unique<RenderItem>();
 	treeSpritesRitem->World = MathHelper::Identity4x4();
 	treeSpritesRitem->ObjCBIndex = 3;
@@ -1393,52 +1450,61 @@ void ShapesApp::BuildRenderItems()
 	treeSpritesRitem->BaseVertexLocation = treeSpritesRitem->Geo->DrawArgs["points"].BaseVertexLocation;
 
 	//Save information in mRitemLayer array by using (int)RenderLayer::AlphaTestedTreeSprites key.
-	mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(treeSpritesRitem.get());
+	//mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(treeSpritesRitem.get());
 
-
-
-
-	//Build render item for castle
-	for (size_t i = 0; i < itemList.size(); i++)
+	for (UINT j = 0; j < PrimitiveType::Count; ++j)
 	{
 		auto Ritem = std::make_unique<RenderItem>();
-
-		XMMATRIX transform = XMMatrixIdentity();
-		transform *= XMMatrixScaling(itemList[i].scale.x, itemList[i].scale.y, itemList[i].scale.z);
-		transform *= XMMatrixRotationZ(XMConvertToRadians(itemList[i].rotation.z));
-		transform *= XMMatrixRotationX(XMConvertToRadians(itemList[i].rotation.x));
-		transform *= XMMatrixRotationY(XMConvertToRadians(itemList[i].rotation.y));
-		transform *= XMMatrixTranslation(itemList[i].position.x, itemList[i].position.y, itemList[i].position.z);
-
-		XMStoreFloat4x4(&Ritem->World, transform);
-
-		Ritem->ObjCBIndex = i + 4;
-
-		//Assign material for castle render items
-		Ritem->Mat = mMaterials[itemList[i].tex].get();
 		Ritem->Geo = mGeometries["shapeGeo"].get();
-
+		Ritem->IndexCount = Ritem->Geo->DrawArgs[drawArgs[j]].IndexCount;
+		Ritem->StartIndexLocation = Ritem->Geo->DrawArgs[drawArgs[j]].StartIndexLocation;
+		Ritem->BaseVertexLocation = Ritem->Geo->DrawArgs[drawArgs[j]].BaseVertexLocation;
 		Ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-		Ritem->IndexCount = Ritem->Geo->DrawArgs[itemList[i].type].IndexCount;
-		Ritem->InstanceCount = 1;
-		Ritem->StartIndexLocation = Ritem->Geo->DrawArgs[itemList[i].type].StartIndexLocation;
-		Ritem->BaseVertexLocation = Ritem->Geo->DrawArgs[itemList[i].type].BaseVertexLocation;
+		Ritem->InstanceCount = 1+j;
 		Ritem->Instances.resize(Ritem->InstanceCount);
-		XMStoreFloat4x4(&Ritem->Instances[0].World, transform);
-		XMStoreFloat4x4(&Ritem->Instances[0].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
-		Ritem->Instances[0].MaterialIndex = 4;
+		UINT last = Ritem->Instances.size() - 1;
+		Ritem->Instances[last].World = XMFLOAT4X4(
+			2.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 2.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 2.0f, 0.0f,
+			10.0f * j, 0.0f, 0.0f, 1.0f);
+
+		XMStoreFloat4x4(&Ritem->Instances[last].TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+
+		Ritem->Instances[last].MaterialIndex = j + 1;
+
 		mInstanceCount++;
-		//Save information in mRitemLayer array by using (int)RenderLayer::Opaque key.
+		/*/
+		for (int i = 0; i < itemList.size(); i++)
+		{
+			if (itemList[i].primitiveIndex == j)
+			{
+				InstanceData temp;
+				Ritem->InstanceCount++;
+
+				XMMATRIX transform = XMMatrixIdentity();
+				transform *= XMMatrixScaling(itemList[i].scale.x, itemList[i].scale.y, itemList[i].scale.z);
+				transform *= XMMatrixRotationZ(XMConvertToRadians(itemList[i].rotation.z));
+				transform *= XMMatrixRotationX(XMConvertToRadians(itemList[i].rotation.x));
+				transform *= XMMatrixRotationY(XMConvertToRadians(itemList[i].rotation.y));
+				transform *= XMMatrixTranslation(itemList[i].position.x, itemList[i].position.y, itemList[i].position.z);
+
+				XMStoreFloat4x4(&temp.World, transform);
+				XMStoreFloat4x4(&temp.TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
+
+				temp.MaterialIndex = itemList[i].texIndex+3;
+				Ritem->Instances.push_back(std::move(temp));
+				mInstanceCount++;
+			}
+		}
+		//*/
 		mRitemLayer[(int)RenderLayer::Opaque].push_back(Ritem.get());
-		//Save ObjCBIndex, mat, geo, transform, rotation and scale information in mAllRitems array (vector) to be readyto update object later.
 		mAllRitems.push_back(std::move(Ritem));
 	}
 
 	//Save ObjCBIndex, mat, geo, transform, rotation and scale information in mAllRitems array (vector) to be ready to update object later.
-	mAllRitems.push_back(std::move(wavesRitem));
-	mAllRitems.push_back(std::move(treeSpritesRitem));
-
+	//mAllRitems.push_back(std::move(wavesRitem));
+	//mAllRitems.push_back(std::move(treeSpritesRitem));
 }
 
 void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
@@ -1452,6 +1518,8 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
+		// Set the instance buffer to use for this render-item.  For structured buffers, we can bypass 
+		// the heap and set as a root descriptor.
 		auto instanceBuffer = mCurrFrameResource->InstanceBuffer->Resource();
 		mCommandList->SetGraphicsRootShaderResourceView(0, instanceBuffer->GetGPUVirtualAddress());
 
